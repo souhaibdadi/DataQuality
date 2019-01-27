@@ -6,19 +6,21 @@ import fr.edf.dco.edma.edq.configuration.checkes.FieldsChecks
 import scala.util.control.Breaks._
 import scala.util.matching
 
+case class checkResult(rowKey:String,qualifier:String,id:String,isChecked:Boolean)
+
 object Validation {
 
-  def validate(rowData:DataNode,listOfFieldChecks:List[FieldsChecks]): List[(String,String,String,Boolean)] = {
+  def validate(rowData:DataNode,listOfFieldChecks:List[FieldsChecks]): List[checkResult] = {
     listOfFieldChecks.flatMap(fieldsChecks => processFieldChecks(rowData,fieldsChecks))
   }
 
-  def processFieldChecks(rowData: DataNode, fieldChecks:FieldsChecks): List[(String,String,String,Boolean)] = {
+  def processFieldChecks(rowData: DataNode, fieldChecks:FieldsChecks): List[checkResult] = {
     val field = fieldChecks.getField()
     fieldChecks.checks.map(check => checksFactory(rowData,check,field))
   }
 
 
-  def checksFactory(rowData:DataNode, check:Check, field:String): (String,String,String,Boolean) = {
+  def checksFactory(rowData:DataNode, check:Check, field:String): checkResult = {
     check match {
       case regex : Regex => checkRegex(rowData,regex,field)
       case regexWhere : RegexWhere => checkRegexWhere(rowData,regexWhere,field)   // TODO
@@ -26,17 +28,17 @@ object Validation {
     }
   }
 
-  def checkRegex(rowData:DataNode, check:Regex, field:String) : (String,String,String,Boolean) = {
+  def checkRegex(rowData:DataNode, check:Regex, field:String) : checkResult = {
     rowData.isExist(field) match {
-      case true => (rowData.rowKey,field,check.id,rowData.getField(field).get.matches(check.regex))
-      case false => (rowData.rowKey,field,check.id,false) // TODO : Prendre en compte l'information champs mandatory
+      case true => checkResult(rowData.rowKey,field,check.id,rowData.getField(field).get.matches(check.regex))
+      case false => checkResult(rowData.rowKey,field,check.id,false) // TODO : Prendre en compte l'information champs mandatory
     }
   }
 
-  def checkRegexWhere(rowData:DataNode, check:RegexWhere, field:String) : (String,String,String,Boolean) = {
+  def checkRegexWhere(rowData:DataNode, check:RegexWhere, field:String) : checkResult = {
     rowData.isExist(field) match {
-      case true => (rowData.rowKey,field,check.getId,rowData.getField(field).get.matches(check.getRegex) && checkWhere(rowData,check.wheres))
-      case false => (rowData.rowKey,field,check.getId,false)
+      case true => checkResult(rowData.rowKey,field,check.getId,rowData.getField(field).get.matches(check.getRegex) && checkWhere(rowData,check.wheres))
+      case false => checkResult(rowData.rowKey,field,check.getId,false)
     }
   }
 

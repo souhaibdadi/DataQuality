@@ -5,11 +5,15 @@ package fr.edf.dco.edma.edq
 //import fr.jetoile.hadoopunit.Component
 import com.typesafe.config.Config
 import fr.edf.dco.edma.configuration.{EdmaDataQualityConfiguration, configurationLoader}
-import fr.edf.dco.edma.edq.dataNode.{DataNode, Validation}
-import fr.edf.dco.edma.edq.helpers.HBaseHelper
+import fr.edf.dco.edma.edq.dataNode.{DataNode, Validation, checkResult}
+import fr.edf.dco.edma.edq.input.HBaseInput
+import fr.edf.dco.edma.edq.job.{Launcher, UnvalidateData}
+import fr.edf.dco.edma.edq.job.Launcher._
 import org.apache.commons.configuration.{ConfigurationException, PropertiesConfiguration}
 import org.apache.hadoop.hbase.HBaseConfiguration
-import org.apache.hadoop.hbase.mapreduce.TableInputFormat
+import org.apache.hadoop.hbase.client.Put
+import org.apache.hadoop.hbase.mapreduce.{TableInputFormat, TableOutputFormat}
+import org.apache.hadoop.mapreduce.Job
 import org.apache.spark.rdd.RDD
 //import org.apache.hadoop.hbase.HBaseConfiguration
 //import org.apache.hadoop.hbase.mapreduce.TableInputFormat
@@ -27,18 +31,31 @@ object HadoopTU {
     val edmaDataQuality = new EdmaDataQualityConfiguration(configs(0))
 
     // Creer un contexte Spark
-    val sparkConf = new SparkConf().setAppName("EdmaDataQuality").setMaster("local[2]")
-    val sc = new SparkContext(sparkConf)
+    implicit val sparkConf = new SparkConf().setAppName("EdmaDataQuality").setMaster("local[2]")
+    implicit val sc = new SparkContext(sparkConf)
     // Creer un contexte HBase
-    val hbaseConfiguration = HBaseConfiguration.create()
+    implicit val hbaseConfiguration = HBaseConfiguration.create()
     hbaseConfiguration.set("hbase.zookeeper.quorum","127.0.0.1:22010")
     hbaseConfiguration.set("zookeeper.znode.parent","/hbase-unsecure")
 
-    val data: RDD[DataNode] = HBaseHelper.getTable(sc, hbaseConfiguration, edmaDataQuality.getTable())
 
-    val test: RDD[(String, String, String, Boolean)] = data.flatMap(dataNode => Validation.validate(dataNode,edmaDataQuality.getFieldsChecks()))
+    // SAVE
+    hbaseConfiguration.set(TableOutputFormat.OUTPUT_TABLE, "dco_edma:Utilisateur")
+    val job = Job.getInstance(hbaseConfiguration)
+    job.setOutputFormatClass(classOf[TableOutputFormat[String]])
 
-    test.collect().map(row => println(row))
+
+
+    val data: RDD[DataNode] = HBaseInput.getTable(edmaDataQuality.getTable())
+
+    val test: RDD[checkResult] = data.flatMap(dataNode => Validation.validate(dataNode,edmaDataQuality.getFieldsChecks()))
+
+    val unvalidateData: RDD[UnvalidateData] = collectUnvalidateData(test)
+
+    val puts: RDD[(Array[Byte], Put)] = saveUnvalidateData(unvalidateData,edmaDataQuality.getTable())
+
+
+    puts.saveAsNewAPIHadoopDataset(job.getConfiguration)
   }
 
 }

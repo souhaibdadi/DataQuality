@@ -1,4 +1,4 @@
-package fr.edf.dco.edma.edq.helpers
+package fr.edf.dco.edma.edq.input
 
 import fr.edf.dco.edma.edq.dataNode.DataNode
 import org.apache.hadoop.conf.Configuration
@@ -13,10 +13,10 @@ import org.apache.hadoop.hbase.util.Bytes
 
 import scala.collection.JavaConversions._
 
-object HBaseHelper {
+object HBaseInput {
 
 
-  def getTable(sc: SparkContext, conf:Configuration, table: String): RDD[DataNode] = {
+  def getTable(table: String)(implicit sc: SparkContext, conf:Configuration): RDD[DataNode] = {
 
     conf.set(TableInputFormat.INPUT_TABLE, table)
     // Speculative
