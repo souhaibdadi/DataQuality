@@ -40,8 +40,10 @@ object Launcher extends ConnexionHelper {
 
   def collectUnvalidateData(datanodes : RDD[checkResult]) = {
     datanodes.filter(!_.isChecked).map(data => (data.id,(List(data.rowKey),1)))
-      .reduceByKey((one,two) => (one._1 ++ two._1,one._2 + two._2))
+      .reduceByKey((one,two) => (one._1 ::: two._1,one._2 + two._2))
       .map(data => UnvalidateData(data._1,data._2._1,data._2._2))
+      .map(data => (data.checkId,data.unvalidateRowKey.take(10),data.nbOfRowsUnvalidated))
+      .collect().map(data => println("rule : " + data._1 + " |||||| " + data._2 + " number of row : " + data._3))
   }
 
 }
